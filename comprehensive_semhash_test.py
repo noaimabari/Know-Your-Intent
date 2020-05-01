@@ -1,10 +1,7 @@
-from __future__ import unicode_literals
 import sys
 import re
 import os
 from itertools import product
-import codecs
-import json
 import csv
 import spacy
 import sklearn
@@ -15,18 +12,15 @@ from sklearn import model_selection
 from time import time
 from sklearn.feature_extraction.text import TfidfVectorizer, HashingVectorizer, CountVectorizer
 from sklearn.feature_selection import SelectFromModel, SelectKBest, chi2
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit, GridSearchCV
 from sklearn.neighbors.nearest_centroid import NearestCentroid
 import math
 import random
 from tqdm import tqdm
 from nltk.corpus import wordnet
-from sklearn.linear_model import RidgeClassifier
+from sklearn.linear_model import RidgeClassifier, SGDClassifier, Perceptron, PassiveAggressiveClassifier, LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
-from sklearn.linear_model import SGDClassifier
-from sklearn.linear_model import Perceptron
-from sklearn.linear_model import PassiveAggressiveClassifier
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import NearestCentroid
@@ -35,8 +29,6 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.utils.extmath import density
 from sklearn import metrics
 from sklearn.cluster import KMeans
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV
 
 # ## Benchmarking using SemHash on NLU Evaluation Corpora
 # 
@@ -74,22 +66,6 @@ from sklearn.model_selection import GridSearchCV
 # https://github.com/Botfuel/benchmark-nlp-2018/tree/master/results
 # 
 # 
-
-
-
-# import os
-# os.environ['LDFLAGS'] = '-framework CoreFoundation -framework SystemConfiguration'
-# !pip3 install spacy
-print(sys.path)
-
-
-
-
-#coding: utf-8
-# import locale
-# print(locale.getlocale())
-
-
 # Spacy english dataset with vectors needs to be present. It can be downloaded using the following command:
 # 
 # python -m spacy download en_core_web_lg
@@ -99,18 +75,6 @@ print(sys.path)
 # !python -m spacy download en_core_web_lg
 nlp=spacy.load('en_core_web_lg')
 print('Running')
-
-# for hyper_bench in ['AskUbuntu', 'Chatbot', 'WebApplication']:
-#     benchmark_dataset = hyper
-
-#     for hyper_over in [True, False]:
-#         oversample = hyper_over
-
-#         for hyper_syn_extra in [True, False]:
-#             synonym_extra_samples = hyper_syn_extra
-
-#             for hyper_aug in [True, False]:
-#                 augm
 
 
 nouns = {x.name().split('.', 1)[0] for x in wordnet.all_synsets('n')}
@@ -123,12 +87,7 @@ def get_synonyms(word, number= 3):
             synonyms.append(l.name().lower().replace("_", " "))
     synonyms = list(OrderedDict.fromkeys(synonyms))
     return synonyms[:number]
-    #return [token.text for token in most_similar(nlp.vocab[word])]
 
-
-
-
-print(get_synonyms("search",-1))
 
 
 
@@ -162,12 +121,8 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
                       "Filter Spam":5, "Find Alternative":6, "Delete Account":7}
 
 
-
-
     filename_train = "datasets/KL/" + benchmark_dataset + "/train.csv"
     filename_test = "datasets/KL/" + benchmark_dataset + "/test.csv"
-
-
 
 
     def read_CSV_datafile(filename):    
@@ -189,11 +144,9 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
 
 
     def tokenize(doc):
-        """
-        Returns a list of strings containing each token in `sentence`
-        """
-        #return [i for i in re.split(r"([-.\"',:? !\$#@~()*&\^%;\[\]/\\\+<>\n=])",
-        #                            doc) if i != '' and i != ' ' and i != '\n']
+    
+        # Returns a list of strings containing each token in `sentence`
+  
         tokens = []
         doc = nlp.tokenizer(doc)
         for token in doc:
@@ -304,17 +257,13 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
             for X, y in zip(X_train, y_train):
                 tmp_x = self._augment_sentence(X, num_samples)
                 sample = [[Xs.append(item), ys.append(y)] for item in tmp_x]
-    #             print(X, y)
-    #             print(self.augmentedFile+str(self.nSamples)+".csv")
 
-    
-            with open("./datasets/KL/Chatbot/train_augmented.csv", 'w', encoding='utf8') as csvFile:
+            file_path = "./datasets/KL/Chatbot/train_augmented.csv"
+            with open(file_path, 'w', encoding='utf8') as csvFile:
                 fileWriter = csv.writer(csvFile, delimiter='\t')
                 for i in range(0, len(Xs)-1):
                     fileWriter.writerow([Xs[i] + '\t' + ys[i]])
-                    # print(Xs[i], "\t", ys[i])
-                    # print(Xs[i])
-                # fileWriter.writerows(Xs + ['\t'] + ys)
+                   
             return Xs, ys
 
         # Randomly replaces the nouns and verbs by synonyms
@@ -354,11 +303,6 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
                             sentence = self._get_augment_sentence(sentence)
                     Xs.append(sentence)
                     ys.append(y)
-
-            #with open(filename_train+"augment", 'w', encoding='utf8') as csvFile:
-            #    fileWriter = csv.writer(csvFile, delimiter='\t')
-            #    for i in range(0, len(Xs)-1):
-            #        fileWriter.writerow([Xs[i] + '\t' + ys[i]])
 
             return Xs, ys
 
@@ -692,17 +636,6 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
                                      feature_names=feature_names)
             results.append(result)
 
-           # print('parameters')
-           # print(clf.grid_scores_[0])
-            #print('CV Validation Score')
-           # print(clf.grid_scores_[0].cv_validation_scores)
-           # print('Mean Validation Score')
-           # print(clf.grid_scores_[0].mean_validation_score)
-           # grid_mean_scores = [result.mean_validation_score for result in clf.grid_scores_]
-           # print(grid_mean_scores)
-           # plt.plot(k_range, grid_mean_scores)
-           # plt.xlabel('Value of K for KNN')
-           # plt.ylabel('Cross-Validated Accuracy')
 
         parameters_Linearsvc = [{'C': [1, 10], 'gamma': [0.1,1.0]}]
         for penalty in ["l2", "l1"]:
@@ -710,8 +643,7 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
         #    print("%s penalty" % penalty.upper())
             # Train Liblinear model
             grid=(GridSearchCV(LinearSVC,parameters_Linearsvc, cv=10),"gridsearchSVC")
-            #results.append(benchmark(LinearSVC(penalty=penalty), X_train, y_train, X_test, y_test, target_names,
-            #                         feature_names=feature_names))
+         
 
             result = benchmark(LinearSVC(penalty=penalty, dual=False,tol=1e-3),
                                      X_train, y_train, X_test, y_test, target_names,
@@ -741,8 +673,7 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
                                  feature_names=feature_names))
 
         # Train sparse Naive Bayes classifiers
-        #print('=' * 80)
-        #print("Naive Bayes")
+       
         results.append(benchmark(MultinomialNB(alpha=.01),
                                  X_train, y_train, X_test, y_test, target_names,
                                  feature_names=feature_names))
@@ -792,34 +723,3 @@ for benchmark_dataset, (oversample, synonym_extra_samples, augment_extra_samples
 
 
     print(len(X_train))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
